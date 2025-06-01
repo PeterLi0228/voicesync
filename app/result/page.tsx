@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense, useRef } from "react"
+import { useState, useEffect, Suspense, useRef, useMemo, useCallback } from "react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -123,61 +123,93 @@ function CombinedAudioPlayer({
   const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // 过滤出成功的音频
-  const successfulAudios = ttsAudios.filter(audio => 
-    audio.status === 'succeeded' && audio.audioUrl
+  // 使用 useMemo 来稳定化过滤后的音频数组
+  const successfulAudios = useMemo(() => 
+    ttsAudios.filter(audio => 
+      audio.status === 'succeeded' && audio.audioUrl
+    ), [ttsAudios]
   );
+
+  // 使用 useMemo 来稳定化音频段数据
+  const audioSegments = useMemo(() => {
+    return successfulAudios.map(audio => {
+      const correspondingSegment = translatedSegments.find(seg => seg.id === audio.segmentId);
+      return {
+        segmentId: audio.segmentId,
+        audioUrl: audio.audioUrl,
+        start: correspondingSegment?.start || 0,
+        end: correspondingSegment?.end || 0,
+        originalDuration: audio.originalDuration || 0
+      };
+    });
+  }, [successfulAudios, translatedSegments]);
 
   // 合并音频段
   useEffect(() => {
+    // 如果没有音频段或者已经有合并的URL，跳过
+    if (successfulAudios.length === 0) {
+      setError('No audio segments available for playback.');
+      setMergedAudioUrl(null);
+      return;
+    }
+
+    // 如果只有一个音频段，直接使用
+    if (successfulAudios.length === 1) {
+      const audioUrl = successfulAudios[0].audioUrl;
+      if (mergedAudioUrl !== audioUrl) {
+        // 清理之前的 blob URL
+        if (mergedAudioUrl && mergedAudioUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(mergedAudioUrl);
+        }
+        setMergedAudioUrl(audioUrl);
+        setError(null);
+      }
+      return;
+    }
+
+    // 多个音频需要合并
+    let isCancelled = false;
+
     const mergeAudios = async () => {
-      if (successfulAudios.length === 0) {
-        setError('No audio segments available for playback.');
-        return;
-      }
-
-      if (successfulAudios.length === 1) {
-        // 单个音频直接使用
-        setMergedAudioUrl(successfulAudios[0].audioUrl);
-        return;
-      }
-
-      // 多个音频需要合并
+      if (isCancelled) return;
+      
       setIsLoading(true);
       setError(null);
 
       try {
-        // 准备音频段数据
-        const audioSegments = successfulAudios.map(audio => {
-          const correspondingSegment = translatedSegments.find(seg => seg.id === audio.segmentId);
-          return {
-            segmentId: audio.segmentId,
-            audioUrl: audio.audioUrl,
-            start: correspondingSegment?.start || 0,
-            end: correspondingSegment?.end || 0,
-            originalDuration: audio.originalDuration || 0
-          };
-        });
-
         console.log('🎵 Merging audio segments:', audioSegments);
         
         // 尝试合并音频
         const mergedUrl = await mergeAudioSegments(audioSegments);
-        setMergedAudioUrl(mergedUrl);
-        console.log('✅ Audio segments merged successfully');
+        
+        if (!isCancelled) {
+          // 清理之前的 blob URL
+          if (mergedAudioUrl && mergedAudioUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(mergedAudioUrl);
+          }
+          setMergedAudioUrl(mergedUrl);
+          console.log('✅ Audio segments merged successfully');
+        } else {
+          // 如果组件已卸载，清理新创建的 URL
+          URL.revokeObjectURL(mergedUrl);
+        }
         
       } catch (error) {
-        console.error('❌ Failed to merge audio segments:', error);
-        
-        // 降级方案：使用第一个音频作为代表
-        if (successfulAudios[0]) {
-          setMergedAudioUrl(successfulAudios[0].audioUrl);
-          setError('Audio merging failed, showing first segment only.');
-        } else {
-          setError('Failed to load audio segments.');
+        if (!isCancelled) {
+          console.error('❌ Failed to merge audio segments:', error);
+          
+          // 降级方案：使用第一个音频作为代表
+          if (successfulAudios[0]) {
+            setMergedAudioUrl(successfulAudios[0].audioUrl);
+            setError('Audio merging failed, showing first segment only.');
+          } else {
+            setError('Failed to load audio segments.');
+          }
         }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -185,38 +217,45 @@ function CombinedAudioPlayer({
 
     // 清理函数
     return () => {
+      isCancelled = true;
+    };
+  }, [audioSegments.length, audioSegments.map(s => s.audioUrl).join(',')]); // 只在音频段数量或URL变化时重新执行
+
+  // 组件卸载时清理 blob URL
+  useEffect(() => {
+    return () => {
       if (mergedAudioUrl && mergedAudioUrl.startsWith('blob:')) {
         URL.revokeObjectURL(mergedAudioUrl);
       }
     };
-  }, [successfulAudios, translatedSegments]);
+  }, [mergedAudioUrl]);
 
   // 音频事件处理
-  const handleTimeUpdate = () => {
+  const handleTimeUpdate = useCallback(() => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
     }
-  };
+  }, []);
 
-  const handleLoadedMetadata = () => {
+  const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current) {
       setDuration(audioRef.current.duration);
     }
-  };
+  }, []);
 
-  const handlePlay = () => {
+  const handlePlay = useCallback(() => {
     setIsPlaying(true);
-  };
+  }, []);
 
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
     setIsPlaying(false);
-  };
+  }, []);
 
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
   if (successfulAudios.length === 0) {
     return (
