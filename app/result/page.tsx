@@ -110,10 +110,12 @@ function OriginalAudioPlayer() {
 // 整合音频播放器组件
 function CombinedAudioPlayer({ 
   ttsAudios, 
-  translatedSegments 
+  translatedSegments,
+  onMergedAudioReady 
 }: { 
   ttsAudios: any[], 
-  translatedSegments: any[] 
+  translatedSegments: any[],
+  onMergedAudioReady?: (audioUrl: string | null) => void
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -150,6 +152,7 @@ function CombinedAudioPlayer({
     if (successfulAudios.length === 0) {
       setError('No audio segments available for playback.');
       setMergedAudioUrl(null);
+      onMergedAudioReady?.(null);
       return;
     }
 
@@ -163,6 +166,7 @@ function CombinedAudioPlayer({
         }
         setMergedAudioUrl(audioUrl);
         setError(null);
+        onMergedAudioReady?.(audioUrl);
       }
       return;
     }
@@ -188,6 +192,7 @@ function CombinedAudioPlayer({
             URL.revokeObjectURL(mergedAudioUrl);
           }
           setMergedAudioUrl(mergedUrl);
+          onMergedAudioReady?.(mergedUrl);
           console.log('✅ Audio segments merged successfully');
         } else {
           // 如果组件已卸载，清理新创建的 URL
@@ -202,8 +207,10 @@ function CombinedAudioPlayer({
           if (successfulAudios[0]) {
             setMergedAudioUrl(successfulAudios[0].audioUrl);
             setError('Audio merging failed, showing first segment only.');
+            onMergedAudioReady?.(successfulAudios[0].audioUrl);
           } else {
             setError('Failed to load audio segments.');
+            onMergedAudioReady?.(null);
           }
         }
       } finally {
@@ -219,7 +226,7 @@ function CombinedAudioPlayer({
     return () => {
       isCancelled = true;
     };
-  }, [audioSegments.length, audioSegments.map(s => s.audioUrl).join(',')]); // 只在音频段数量或URL变化时重新执行
+  }, [audioSegments.length, audioSegments.map(s => s.audioUrl).join(','), onMergedAudioReady]); // 只在音频段数量或URL变化时重新执行
 
   // 组件卸载时清理 blob URL
   useEffect(() => {
@@ -356,6 +363,12 @@ function ResultContent() {
   const [processingTime, setProcessingTime] = useState(0)
   const [result, setResult] = useState<ProcessingResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mergedAudioForDownload, setMergedAudioForDownload] = useState<string | null>(null)
+
+  // 从 CombinedAudioPlayer 组件接收合并后的音频URL
+  const handleMergedAudioReady = useCallback((audioUrl: string | null) => {
+    setMergedAudioForDownload(audioUrl);
+  }, []);
 
   useEffect(() => {
     // Get processing data from sessionStorage
@@ -522,7 +535,7 @@ function ResultContent() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`
   }
 
-  const downloadDubbedAudio = (ttsAudios: Array<{
+  const downloadDubbedAudio = async (ttsAudios: Array<{
     segmentId: number;
     originalDuration: number;
     audioUrl: string | null;
@@ -541,48 +554,117 @@ function ResultContent() {
       return;
     }
     
+    // 如果有合并后的音频，优先下载合并音频
+    if (mergedAudioForDownload && successfulAudios.length > 1) {
+      try {
+        // 在新标签页打开下载
+        const link = document.createElement('a');
+        link.href = mergedAudioForDownload;
+        link.download = `complete_dubbed_audio_${result?.targetLanguage || 'translated'}.wav`;
+        link.target = '_blank'; // 在新标签页打开
+        link.rel = 'noopener noreferrer'; // 安全性
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      } catch (error) {
+        console.error('Failed to download merged audio:', error);
+        // 如果合并音频下载失败，继续使用原来的逻辑
+      }
+    }
+    
     if (successfulAudios.length === 1) {
-      // 单个音频直接下载
+      // 单个音频直接下载，在新标签页打开
       const audio = successfulAudios[0];
       const link = document.createElement('a');
       link.href = audio.audioUrl!;
       link.download = `dubbed_audio_segment_${audio.segmentId}.wav`;
+      link.target = '_blank'; // 在新标签页打开
+      link.rel = 'noopener noreferrer'; // 安全性
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } else {
-      // 多个音频创建下载列表
-      const downloadList = successfulAudios.map(audio => 
-        `Segment ${audio.segmentId}: ${audio.audioUrl}`
-      ).join('\n');
-      
-      const blob = new Blob([
-        'Dubbed Audio Download Links\n',
-        '========================\n\n',
-        downloadList,
-        '\n\nNote: Right-click each link and select "Save link as..." to download individual segments.'
-      ], { type: 'text/plain' });
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'dubbed_audio_links.txt';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      // 也可以尝试下载第一个音频作为示例
-      if (successfulAudios[0]) {
+      // 如果没有合并音频，尝试创建合并音频
+      try {
+        // 准备音频段数据，确保 audioUrl 不为 null
+        const audioSegments = successfulAudios
+          .filter(audio => audio.audioUrl !== null)
+          .map(audio => {
+            const correspondingSegment = result?.translatedSegments.find(seg => seg.id === audio.segmentId);
+            return {
+              segmentId: audio.segmentId,
+              audioUrl: audio.audioUrl!, // 使用 ! 因为我们已经过滤了 null 值
+              start: correspondingSegment?.start || 0,
+              end: correspondingSegment?.end || 0,
+              originalDuration: audio.originalDuration || 0
+            };
+          });
+
+        console.log('🎵 Creating merged audio for download:', audioSegments);
+        
+        // 动态导入音频合并函数
+        const { mergeAudioSegments } = await import('@/lib/audio-utils');
+        const mergedUrl = await mergeAudioSegments(audioSegments);
+        
+        // 下载合并后的音频，在新标签页打开
+        const link = document.createElement('a');
+        link.href = mergedUrl;
+        link.download = `complete_dubbed_audio_${result?.targetLanguage || 'translated'}.wav`;
+        link.target = '_blank'; // 在新标签页打开
+        link.rel = 'noopener noreferrer'; // 安全性
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('✅ Merged audio download initiated');
+        
+        // 清理临时URL
         setTimeout(() => {
-          const firstAudio = successfulAudios[0];
-          const audioLink = document.createElement('a');
-          audioLink.href = firstAudio.audioUrl!;
-          audioLink.download = `dubbed_audio_segment_${firstAudio.segmentId}.wav`;
-          document.body.appendChild(audioLink);
-          audioLink.click();
-          document.body.removeChild(audioLink);
-        }, 500);
+          URL.revokeObjectURL(mergedUrl);
+        }, 1000);
+        
+      } catch (error) {
+        console.error('❌ Failed to create merged audio for download:', error);
+        
+        // 降级方案：提供分段下载链接
+        const downloadList = successfulAudios.map(audio => 
+          `Segment ${audio.segmentId}: ${audio.audioUrl}`
+        ).join('\n');
+        
+        const blob = new Blob([
+          'Dubbed Audio Download Links\n',
+          '========================\n\n',
+          downloadList,
+          '\n\nNote: Right-click each link and select "Save link as..." to download individual segments.',
+          '\n\nMerged audio creation failed. Please download segments individually.'
+        ], { type: 'text/plain' });
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'dubbed_audio_links.txt';
+        link.target = '_blank'; // 在新标签页打开
+        link.rel = 'noopener noreferrer'; // 安全性
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // 也可以尝试下载第一个音频作为示例
+        if (successfulAudios[0]) {
+          setTimeout(() => {
+            const firstAudio = successfulAudios[0];
+            const audioLink = document.createElement('a');
+            audioLink.href = firstAudio.audioUrl!;
+            audioLink.download = `dubbed_audio_segment_${firstAudio.segmentId}.wav`;
+            audioLink.target = '_blank'; // 在新标签页打开
+            audioLink.rel = 'noopener noreferrer'; // 安全性
+            document.body.appendChild(audioLink);
+            audioLink.click();
+            document.body.removeChild(audioLink);
+          }, 500);
+        }
       }
     }
   }
@@ -740,6 +822,7 @@ function ResultContent() {
                             <CombinedAudioPlayer 
                               ttsAudios={result.ttsAudios} 
                               translatedSegments={result.translatedSegments}
+                              onMergedAudioReady={handleMergedAudioReady}
                             />
                           </div>
                         </div>
