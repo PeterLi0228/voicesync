@@ -1,0 +1,816 @@
+"use client"
+
+import { useState, useEffect, Suspense } from "react"
+import { Navbar } from "@/components/navbar"
+import { Footer } from "@/components/footer"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Download, Copy, Check, Share2, Star, CheckCircle, FileAudio, Languages, Play, Pause } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { languages } from "@/components/language-selector"
+import { useSearchParams, useRouter } from 'next/navigation'
+
+interface ProcessingData {
+  fileName: string
+  fileSize: number
+  sourceLanguage: string
+  targetLanguage: string
+  timestamp: number
+}
+
+interface ProcessingResult {
+  originalTranscription: {
+    transcription: string;
+    detected_language: string;
+    segments: Array<{
+      id: number;
+      start: number;
+      end: number;
+      text: string;
+    }>;
+  };
+  translatedText: string;
+  translatedSegments: Array<{
+    id: number;
+    start: number;
+    end: number;
+    originalText: string;
+    translatedText: string;
+  }>;
+  ttsAudios: Array<{
+    segmentId: number;
+    originalDuration: number;
+    audioUrl: string | null;
+    status: string;
+    error?: string;
+    index?: number;
+    ttsText?: string;
+  }>;
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
+// 原始音频播放器组件
+function OriginalAudioPlayer() {
+  const [audioData, setAudioData] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 从localStorage获取原始音频数据
+    try {
+      const uploadedAudio = localStorage.getItem('uploadedAudio');
+      if (uploadedAudio) {
+        setAudioData(uploadedAudio);
+      } else {
+        setError('Original audio not found in storage');
+      }
+    } catch (err) {
+      setError('Failed to load original audio');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="text-sm text-gray-500">Loading original audio...</div>
+      </div>
+    );
+  }
+
+  if (error || !audioData) {
+    return (
+      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <p className="text-sm text-yellow-800">
+          <strong>Note:</strong> Original audio playback is not available. {error}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <audio controls className="w-full" preload="metadata">
+        <source src={audioData} type="audio/mpeg" />
+        <source src={audioData} type="audio/wav" />
+        Your browser does not support the audio element.
+      </audio>
+      <div className="text-xs text-gray-500">
+        Original audio from uploaded file
+      </div>
+    </div>
+  );
+}
+
+// 整合音频播放器组件
+function CombinedAudioPlayer({ 
+  ttsAudios, 
+  translatedSegments 
+}: { 
+  ttsAudios: any[], 
+  translatedSegments: any[] 
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentSegment, setCurrentSegment] = useState(0);
+
+  // 过滤出成功的音频
+  const successfulAudios = ttsAudios.filter(audio => 
+    audio.status === 'succeeded' && audio.audioUrl
+  );
+
+  if (successfulAudios.length === 0) {
+    return (
+      <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <p className="text-sm text-gray-600">No audio segments available for playback.</p>
+      </div>
+    );
+  }
+
+  // 如果只有一个音频段，直接播放
+  if (successfulAudios.length === 1) {
+    const audio = successfulAudios[0];
+    const correspondingSegment = translatedSegments.find(seg => seg.id === audio.segmentId);
+    
+    return (
+      <div className="space-y-3">
+        <audio controls className="w-full" preload="metadata">
+          <source src={audio.audioUrl} type="audio/wav" />
+          <source src={audio.audioUrl} type="audio/mpeg" />
+          Your browser does not support the audio element.
+        </audio>
+        
+        {correspondingSegment && (
+          <div className="bg-blue-50 p-2 rounded text-sm">
+            <div className="text-xs text-gray-600 mb-1">Complete dubbed content:</div>
+            <div className="text-gray-900 font-medium">
+              "{audio.ttsText || correspondingSegment.translatedText}"
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 多个音频段的情况 - 显示播放列表
+  return (
+    <div className="space-y-3">
+      <div className="text-sm text-gray-600">
+        Multiple audio segments available. Use the individual players in the Subtitle Comparison section below for segment-by-segment playback.
+      </div>
+      
+      <div className="bg-blue-50 p-3 rounded">
+        <div className="text-sm font-medium text-blue-800 mb-2">
+          Complete Translation Preview:
+        </div>
+        <div className="text-sm text-blue-700">
+          {translatedSegments.map(segment => segment.translatedText).join(' ')}
+        </div>
+      </div>
+      
+      <div className="text-xs text-gray-500">
+        Total segments: {successfulAudios.length} | 
+        Individual playback available in Subtitle Comparison section
+      </div>
+    </div>
+  );
+}
+
+function ResultContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  
+  const [activeTab, setActiveTab] = useState("audio")
+  const [copied, setCopied] = useState(false)
+  const [processingData, setProcessingData] = useState<ProcessingData | null>(null)
+  const [processingTime, setProcessingTime] = useState(0)
+  const [result, setResult] = useState<ProcessingResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Get processing data from sessionStorage
+    const data = sessionStorage.getItem('processingData')
+    if (data) {
+      const parsed = JSON.parse(data)
+      setProcessingData(parsed)
+      // Calculate processing time on client side only
+      setProcessingTime(Math.round((Date.now() - parsed.timestamp) / 1000))
+    }
+  }, [])
+
+  useEffect(() => {
+    const resultId = searchParams.get('id')
+    
+    if (resultId) {
+      // 从sessionStorage读取结果数据
+      try {
+        const storedResult = sessionStorage.getItem('processingResult')
+        const storedId = sessionStorage.getItem('resultId')
+        
+        console.log('🔍 Checking sessionStorage:')
+        console.log('  - Result ID from URL:', resultId)
+        console.log('  - Stored ID:', storedId)
+        console.log('  - Stored result exists:', !!storedResult)
+        console.log('  - Stored result length:', storedResult?.length || 0)
+        
+        if (storedResult && storedId === resultId) {
+          const parsedData = JSON.parse(storedResult)
+          setResult(parsedData)
+          console.log('✅ Result loaded from sessionStorage')
+          return
+        }
+        
+        // 如果sessionStorage不匹配，尝试localStorage备用
+        console.log('❌ SessionStorage data mismatch, trying localStorage backup...')
+        const backupResult = localStorage.getItem('processingResultBackup')
+        const backupId = localStorage.getItem('resultIdBackup')
+        
+        console.log('🔍 Checking localStorage backup:')
+        console.log('  - Backup ID:', backupId)
+        console.log('  - Backup result exists:', !!backupResult)
+        console.log('  - Backup result length:', backupResult?.length || 0)
+        
+        if (backupResult && backupId === resultId) {
+          const parsedData = JSON.parse(backupResult)
+          setResult(parsedData)
+          console.log('✅ Result loaded from localStorage backup')
+          return
+        }
+        
+        // 如果两个存储都不匹配，尝试使用最新的数据（可能是并发请求导致的ID不匹配）
+        if (storedResult || backupResult) {
+          console.log('⚠️ ID mismatch but data exists, using most recent data...')
+          const dataToUse = storedResult || backupResult
+          if (dataToUse) {
+            const parsedData = JSON.parse(dataToUse)
+            setResult(parsedData)
+            console.log('✅ Result loaded from fallback data')
+            return
+          }
+        }
+        
+        console.log('❌ No matching data found in any storage')
+        console.log('  - URL ID:', resultId)
+        console.log('  - Session ID:', storedId)
+        console.log('  - Backup ID:', backupId)
+        console.log('  - ID match (session):', storedId === resultId)
+        console.log('  - ID match (backup):', backupId === resultId)
+        console.log('  - Result exists (session):', !!storedResult)
+        console.log('  - Result exists (backup):', !!backupResult)
+        
+        throw new Error('Result data not found or expired')
+      } catch (err) {
+        console.error('Error loading result from storage:', err)
+        setError('Failed to load result data. The session may have expired. Please try processing your audio again.')
+      }
+    } else {
+      setError('No result ID provided')
+    }
+  }, [searchParams])
+
+  // Mock data for the subtitles
+  const subtitles = [
+    {
+      id: 1,
+      start: "00:00:01,200",
+      end: "00:00:04,500",
+      original: "Welcome to our product demonstration.",
+      translated: "Bienvenido a nuestra demostración de producto.",
+    },
+    {
+      id: 2,
+      start: "00:00:05,000",
+      end: "00:00:09,800",
+      original: "Today, I'll show you how our new software can improve your workflow.",
+      translated: "Hoy, te mostraré cómo nuestro nuevo software puede mejorar tu flujo de trabajo.",
+    },
+    {
+      id: 3,
+      start: "00:00:10,200",
+      end: "00:00:15,500",
+      original: "Let's start by looking at the main dashboard.",
+      translated: "Comencemos por ver el panel de control principal.",
+    },
+    {
+      id: 4,
+      start: "00:00:16,000",
+      end: "00:00:20,500",
+      original: "As you can see, it provides a comprehensive overview of all your projects.",
+      translated: "Como puedes ver, proporciona una visión completa de todos tus proyectos.",
+    },
+    {
+      id: 5,
+      start: "00:00:21,000",
+      end: "00:00:26,800",
+      original: "The interface is designed to be intuitive and user-friendly.",
+      translated: "La interfaz está diseñada para ser intuitiva y fácil de usar.",
+    },
+  ]
+
+  const handleCopySubtitles = () => {
+    const subtitleText = subtitles
+      .map((sub) => `${sub.id}\n${sub.start} --> ${sub.end}\n${sub.translated}\n\n`)
+      .join("")
+
+    navigator.clipboard.writeText(subtitleText)
+    setCopied(true)
+
+    setTimeout(() => {
+      setCopied(false)
+    }, 2000)
+  }
+
+  const getLanguageLabel = (code: string) => {
+    return languages.find(lang => lang.value === code)?.label || code
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const downloadSubtitles = (segments: any[], filename: string) => {
+    // 生成SRT格式字幕
+    let srtContent = ''
+    segments.forEach((segment, index) => {
+      const startTime = formatSRTTime(segment.start)
+      const endTime = formatSRTTime(segment.end)
+      srtContent += `${index + 1}\n${startTime} --> ${endTime}\n${segment.translatedText || segment.text}\n\n`
+    })
+
+    const blob = new Blob([srtContent], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const formatSRTTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+    const ms = Math.floor((seconds % 1) * 1000)
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`
+  }
+
+  const downloadDubbedAudio = (ttsAudios: Array<{
+    segmentId: number;
+    originalDuration: number;
+    audioUrl: string | null;
+    status: string;
+    error?: string;
+    index?: number;
+    ttsText?: string;
+  }>) => {
+    // 过滤出成功的音频
+    const successfulAudios = ttsAudios.filter(audio => 
+      audio.status === 'succeeded' && audio.audioUrl
+    );
+    
+    if (successfulAudios.length === 0) {
+      alert('No audio segments available for download');
+      return;
+    }
+    
+    if (successfulAudios.length === 1) {
+      // 单个音频直接下载
+      const audio = successfulAudios[0];
+      const link = document.createElement('a');
+      link.href = audio.audioUrl!;
+      link.download = `dubbed_audio_segment_${audio.segmentId}.wav`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      // 多个音频创建下载列表
+      const downloadList = successfulAudios.map(audio => 
+        `Segment ${audio.segmentId}: ${audio.audioUrl}`
+      ).join('\n');
+      
+      const blob = new Blob([
+        'Dubbed Audio Download Links\n',
+        '========================\n\n',
+        downloadList,
+        '\n\nNote: Right-click each link and select "Save link as..." to download individual segments.'
+      ], { type: 'text/plain' });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'dubbed_audio_links.txt';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      // 也可以尝试下载第一个音频作为示例
+      if (successfulAudios[0]) {
+        setTimeout(() => {
+          const firstAudio = successfulAudios[0];
+          const audioLink = document.createElement('a');
+          audioLink.href = firstAudio.audioUrl!;
+          audioLink.download = `dubbed_audio_segment_${firstAudio.segmentId}.wav`;
+          document.body.appendChild(audioLink);
+          audioLink.click();
+          document.body.removeChild(audioLink);
+        }, 500);
+      }
+    }
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <Card className="border-red-200 bg-red-50">
+            <CardHeader>
+              <CardTitle className="text-red-600">Error Loading Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-red-600 mb-4">{error}</p>
+              <Button onClick={() => router.push('/upload')} variant="outline">
+                Back to Upload
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (!result) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p>Loading results...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Navbar />
+
+      <main className="flex-1">
+        <div className="container py-12 md:py-16">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center rounded-full bg-green-100 dark:bg-green-900 p-2 mb-4">
+                <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-4">Processing Complete!</h1>
+              <p className="text-lg text-muted-foreground">Your audio has been successfully translated and dubbed</p>
+              
+              {processingData && (
+                <div className="flex flex-wrap justify-center gap-2 mt-4">
+                  <Badge variant="secondary">
+                    {getLanguageLabel(processingData.sourceLanguage)} → {getLanguageLabel(processingData.targetLanguage)}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {formatFileSize(processingData.fileSize)}
+                  </Badge>
+                  {processingTime > 0 && (
+                    <Badge variant="secondary">
+                      Processed in {processingTime}s
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Processing Summary */}
+            {processingData && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    Processing Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <div className="text-muted-foreground">Original File</div>
+                      <div className="font-medium">{processingData.fileName}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">File Size</div>
+                      <div className="font-medium">{formatFileSize(processingData.fileSize)}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Source Language</div>
+                      <div className="font-medium">{getLanguageLabel(processingData.sourceLanguage)}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Target Language</div>
+                      <div className="font-medium">{getLanguageLabel(processingData.targetLanguage)}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Tabs defaultValue="audio" value={activeTab} onValueChange={setActiveTab} className="mb-8">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="audio">Audio Players</TabsTrigger>
+                <TabsTrigger value="subtitles">Subtitles</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="audio" className="mt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Original Audio */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileAudio className="w-5 h-5" />
+                        Original Audio ({result.sourceLanguage})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-2">Original Transcription:</p>
+                          <p className="text-gray-900">{result.originalTranscription.transcription}</p>
+                        </div>
+                        
+                        {/* 原始音频播放器 - 使用localStorage中的音频数据 */}
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-gray-700">Original Audio Playback:</p>
+                          <div className="p-3 bg-white rounded border">
+                            <OriginalAudioPlayer />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Dubbed Audio */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Languages className="w-5 h-5" />
+                        Dubbed Audio ({result.targetLanguage})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-2">Translated Text:</p>
+                          <p className="text-gray-900">{result.translatedText}</p>
+                        </div>
+                        
+                        {/* 整合的音频播放器 */}
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-gray-700">Complete Dubbed Audio:</p>
+                          <div className="p-3 bg-white rounded border">
+                            <CombinedAudioPlayer 
+                              ttsAudios={result.ttsAudios} 
+                              translatedSegments={result.translatedSegments}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="subtitles" className="mt-6">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-medium">Subtitles</h3>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCopySubtitles}
+                          className="flex items-center gap-1"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="h-4 w-4" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4" />
+                              Copy All
+                            </>
+                          )}
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Share2 className="h-4 w-4 mr-1" />
+                          Share
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                      {subtitles.map((subtitle) => (
+                        <div key={subtitle.id} className="border rounded-md p-3 hover:bg-muted/50 transition-colors">
+                          <div className="text-xs text-muted-foreground mb-1">
+                            {subtitle.start} → {subtitle.end}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div>
+                              <div className="text-xs font-medium text-muted-foreground mb-1">
+                                {processingData ? getLanguageLabel(processingData.sourceLanguage) : 'English'}
+                              </div>
+                              <p>{subtitle.original}</p>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-muted-foreground mb-1">
+                                {processingData ? getLanguageLabel(processingData.targetLanguage) : 'Spanish'}
+                              </div>
+                              <p>{subtitle.translated}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+
+            {/* Subtitle Comparison */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Subtitle Comparison</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {result.translatedSegments.map((segment) => {
+                    // 找到对应的TTS音频
+                    const correspondingAudio = result.ttsAudios.find(
+                      audio => audio.segmentId === segment.id
+                    );
+                    
+                    return (
+                      <div key={segment.id} className="border rounded-lg overflow-hidden">
+                        {/* 文本对比部分 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                          <div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-gray-700">Original ({result.sourceLanguage})</span>
+                              <span className="text-xs text-gray-500">
+                                {formatTime(segment.start)} - {formatTime(segment.end)}
+                              </span>
+                            </div>
+                            <p className="text-gray-900 bg-gray-50 p-3 rounded">{segment.originalText}</p>
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-blue-700">Translated ({result.targetLanguage})</span>
+                              <span className="text-xs text-gray-500">#{segment.id}</span>
+                            </div>
+                            <p className="text-gray-900 bg-blue-50 p-3 rounded">{segment.translatedText}</p>
+                          </div>
+                        </div>
+                        
+                        {/* 音频播放部分 */}
+                        {correspondingAudio && (
+                          <div className="border-t bg-gray-50 p-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-xs text-gray-500 font-mono">Audio #{correspondingAudio.segmentId}</span>
+                              <span className="text-xs text-gray-500">
+                                Duration: {formatTime(correspondingAudio.originalDuration)}
+                              </span>
+                            </div>
+                            
+                            {correspondingAudio.audioUrl && correspondingAudio.status === 'succeeded' ? (
+                              <div className="space-y-2">
+                                <audio controls className="w-full" preload="metadata">
+                                  <source src={correspondingAudio.audioUrl} type="audio/wav" />
+                                  <source src={correspondingAudio.audioUrl} type="audio/mpeg" />
+                                  Your browser does not support the audio element.
+                                </audio>
+                                
+                                {/* 显示与音频100%对应的文本 */}
+                                <div className="bg-blue-100 p-2 rounded text-sm">
+                                  <div className="text-xs text-blue-600 mb-1">
+                                    🎵 Audio content (exactly what you hear):
+                                  </div>
+                                  <div className="text-blue-900 font-medium">
+                                    "{correspondingAudio.ttsText || segment.translatedText}"
+                                  </div>
+                                  
+                                  {/* 不匹配警告 */}
+                                  {correspondingAudio.ttsText && 
+                                   correspondingAudio.ttsText !== segment.translatedText && (
+                                    <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                                      ⚠️ Note: Audio content differs from displayed translation
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 p-3 bg-red-50 rounded border border-red-200">
+                                <span className="text-sm text-red-600">Audio generation failed</span>
+                                {correspondingAudio.error && (
+                                  <span className="text-xs text-red-500">({correspondingAudio.error})</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Download Options */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Download Options</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button
+                    onClick={() => downloadSubtitles(result.originalTranscription.segments, 'original_subtitles.srt')}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Original Subtitles
+                  </Button>
+                  
+                  <Button
+                    onClick={() => downloadSubtitles(result.translatedSegments, 'translated_subtitles.srt')}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Translated Subtitles
+                  </Button>
+                  
+                  <Button
+                    onClick={() => downloadDubbedAudio(result.ttsAudios)}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={!result.ttsAudios.some(audio => audio.status === 'succeeded' && audio.audioUrl)}
+                  >
+                    <Download className="w-4 h-4" />
+                    Dubbed Audio
+                  </Button>
+                </div>
+                
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Download Information:</strong> 
+                    <br />• Subtitles are available in SRT format for video editing software
+                    <br />• Dubbed audio segments can be downloaded individually or as a playlist
+                    <br />• All downloads preserve timing information for proper synchronization
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  )
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-lg text-muted-foreground">Loading results...</p>
+        </div>
+      </div>
+    }>
+      <ResultContent />
+    </Suspense>
+  )
+}

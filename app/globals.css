@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 35 65% 65%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 35 65% 65%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 20 14% 8%;
+    --foreground: 35 25% 75%;
+    --card: 20 14% 10%;
+    --card-foreground: 35 25% 75%;
+    --popover: 20 14% 10%;
+    --popover-foreground: 35 25% 75%;
+    --primary: 35 65% 65%;
+    --primary-foreground: 20 14% 8%;
+    --secondary: 20 14% 15%;
+    --secondary-foreground: 35 25% 75%;
+    --muted: 20 14% 15%;
+    --muted-foreground: 35 15% 55%;
+    --accent: 20 14% 15%;
+    --accent-foreground: 35 25% 75%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 20 14% 20%;
+    --input: 20 14% 20%;
+    --ring: 35 65% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.gradient-bg {
+  background: radial-gradient(ellipse at center, rgba(212, 165, 116, 0.1) 0%, transparent 70%);
+}
