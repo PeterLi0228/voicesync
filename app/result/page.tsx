@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useRef } from "react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { languages } from "@/components/language-selector"
 import { useSearchParams, useRouter } from 'next/navigation'
+import { mergeAudioSegments, createAudioPlaylist, formatFileSize, formatTime } from "@/lib/audio-utils"
 
 interface ProcessingData {
   fileName: string
@@ -117,12 +118,105 @@ function CombinedAudioPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [currentSegment, setCurrentSegment] = useState(0);
+  const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // 过滤出成功的音频
   const successfulAudios = ttsAudios.filter(audio => 
     audio.status === 'succeeded' && audio.audioUrl
   );
+
+  // 合并音频段
+  useEffect(() => {
+    const mergeAudios = async () => {
+      if (successfulAudios.length === 0) {
+        setError('No audio segments available for playback.');
+        return;
+      }
+
+      if (successfulAudios.length === 1) {
+        // 单个音频直接使用
+        setMergedAudioUrl(successfulAudios[0].audioUrl);
+        return;
+      }
+
+      // 多个音频需要合并
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // 准备音频段数据
+        const audioSegments = successfulAudios.map(audio => {
+          const correspondingSegment = translatedSegments.find(seg => seg.id === audio.segmentId);
+          return {
+            segmentId: audio.segmentId,
+            audioUrl: audio.audioUrl,
+            start: correspondingSegment?.start || 0,
+            end: correspondingSegment?.end || 0,
+            originalDuration: audio.originalDuration || 0
+          };
+        });
+
+        console.log('🎵 Merging audio segments:', audioSegments);
+        
+        // 尝试合并音频
+        const mergedUrl = await mergeAudioSegments(audioSegments);
+        setMergedAudioUrl(mergedUrl);
+        console.log('✅ Audio segments merged successfully');
+        
+      } catch (error) {
+        console.error('❌ Failed to merge audio segments:', error);
+        
+        // 降级方案：使用第一个音频作为代表
+        if (successfulAudios[0]) {
+          setMergedAudioUrl(successfulAudios[0].audioUrl);
+          setError('Audio merging failed, showing first segment only.');
+        } else {
+          setError('Failed to load audio segments.');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    mergeAudios();
+
+    // 清理函数
+    return () => {
+      if (mergedAudioUrl && mergedAudioUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(mergedAudioUrl);
+      }
+    };
+  }, [successfulAudios, translatedSegments]);
+
+  // 音频事件处理
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   if (successfulAudios.length === 0) {
     return (
@@ -132,38 +226,69 @@ function CombinedAudioPlayer({
     );
   }
 
-  // 如果只有一个音频段，直接播放
-  if (successfulAudios.length === 1) {
-    const audio = successfulAudios[0];
-    const correspondingSegment = translatedSegments.find(seg => seg.id === audio.segmentId);
-    
+  if (isLoading) {
     return (
       <div className="space-y-3">
-        <audio controls className="w-full" preload="metadata">
-          <source src={audio.audioUrl} type="audio/wav" />
-          <source src={audio.audioUrl} type="audio/mpeg" />
-          Your browser does not support the audio element.
-        </audio>
-        
-        {correspondingSegment && (
-          <div className="bg-blue-50 p-2 rounded text-sm">
-            <div className="text-xs text-gray-600 mb-1">Complete dubbed content:</div>
-            <div className="text-gray-900 font-medium">
-              "{audio.ttsText || correspondingSegment.translatedText}"
-            </div>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <p className="text-sm text-blue-700">Merging audio segments...</p>
           </div>
-        )}
+        </div>
+        
+        <div className="bg-blue-50 p-3 rounded">
+          <div className="text-sm font-medium text-blue-800 mb-2">
+            Complete Translation Preview:
+          </div>
+          <div className="text-sm text-blue-700">
+            {translatedSegments.map(segment => segment.translatedText).join(' ')}
+          </div>
+        </div>
       </div>
     );
   }
 
-  // 多个音频段的情况 - 显示播放列表
   return (
     <div className="space-y-3">
-      <div className="text-sm text-gray-600">
-        Multiple audio segments available. Use the individual players in the Subtitle Comparison section below for segment-by-segment playback.
-      </div>
+      {/* 完整配音音频播放器 */}
+      {mergedAudioUrl && (
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-gray-700">Complete Dubbed Audio:</div>
+          <audio 
+            ref={audioRef}
+            controls 
+            className="w-full" 
+            preload="metadata"
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
+            onPlay={handlePlay}
+            onPause={handlePause}
+          >
+            <source src={mergedAudioUrl} type="audio/wav" />
+            <source src={mergedAudioUrl} type="audio/mpeg" />
+            Your browser does not support the audio element.
+          </audio>
+          
+          {/* 显示当前播放时间 */}
+          {duration > 0 && (
+            <div className="text-xs text-gray-500">
+              {formatTime(currentTime)} / {formatTime(duration)}
+              {successfulAudios.length > 1 && (
+                <span className="ml-2">• Merged from {successfulAudios.length} segments</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+          {error}
+        </div>
+      )}
       
+      {/* 翻译文本预览 */}
       <div className="bg-blue-50 p-3 rounded">
         <div className="text-sm font-medium text-blue-800 mb-2">
           Complete Translation Preview:
@@ -173,6 +298,7 @@ function CombinedAudioPlayer({
         </div>
       </div>
       
+      {/* 统计信息 */}
       <div className="text-xs text-gray-500">
         Total segments: {successfulAudios.length} | 
         Individual playback available in Subtitle Comparison section
@@ -327,20 +453,6 @@ function ResultContent() {
 
   const getLanguageLabel = (code: string) => {
     return languages.find(lang => lang.value === code)?.label || code
-  }
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
   const downloadSubtitles = (segments: any[], filename: string) => {
