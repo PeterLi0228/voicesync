@@ -23,12 +23,12 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="#features" className="text-sm text-muted-foreground hover:text-primary">
+                <Link href="/#features" className="text-sm text-muted-foreground hover:text-primary">
                   Features
                 </Link>
               </li>
               <li>
-                <Link href="#how-it-works" className="text-sm text-muted-foreground hover:text-primary">
+                <Link href="/#how-it-works" className="text-sm text-muted-foreground hover:text-primary">
                   How It Works
                 </Link>
               </li>
@@ -36,21 +36,21 @@ export function Footer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-3">Resources</h3>
+            <h3 className="text-sm font-medium mb-3">Support</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="#" className="text-sm text-muted-foreground hover:text-primary">
-                  Documentation
+                <Link href="/contact" className="text-sm text-muted-foreground hover:text-primary">
+                  Contact Us
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-sm text-muted-foreground hover:text-primary">
-                  FAQ
+                <Link href="/contact" className="text-sm text-muted-foreground hover:text-primary">
+                  Technical Support
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-sm text-muted-foreground hover:text-primary">
-                  Support
+                <Link href="/contact" className="text-sm text-muted-foreground hover:text-primary">
+                  Help Center
                 </Link>
               </li>
             </ul>
@@ -60,12 +60,12 @@ export function Footer() {
             <h3 className="text-sm font-medium mb-3">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="#" className="text-sm text-muted-foreground hover:text-primary">
+                <Link href="/privacy" className="text-sm text-muted-foreground hover:text-primary">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-sm text-muted-foreground hover:text-primary">
+                <Link href="/terms" className="text-sm text-muted-foreground hover:text-primary">
                   Terms of Service
                 </Link>
               </li>
