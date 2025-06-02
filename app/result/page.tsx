@@ -824,6 +824,16 @@ function ResultContent() {
                           Translated
                         </Button>
                         <Button
+                          onClick={() => downloadDubbedAudio(result?.ttsAudios || [])}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                          disabled={!result?.ttsAudios.some(audio => audio.status === 'succeeded' && audio.audioUrl)}
+                        >
+                          <Download className="h-4 w-4" />
+                          Audio
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={handleCopySubtitles}
@@ -965,35 +975,6 @@ function ResultContent() {
                       </div>
                     );
                   })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Download Dubbed Audio - Standalone */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Download Dubbed Audio</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-center">
-                  <Button
-                    onClick={() => downloadDubbedAudio(result.ttsAudios)}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                    disabled={!result.ttsAudios.some(audio => audio.status === 'succeeded' && audio.audioUrl)}
-                  >
-                    <Download className="w-4 h-4" />
-                    Download Complete Dubbed Audio
-                  </Button>
-                </div>
-                
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Download Information:</strong> 
-                    <br />• Complete dubbed audio will be downloaded as a single merged file
-                    <br />• Audio preserves timing information for proper synchronization
-                    <br />• Download opens in a new tab for your convenience
-                  </p>
                 </div>
               </CardContent>
             </Card>
