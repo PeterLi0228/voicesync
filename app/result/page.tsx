@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { languages } from "@/components/language-selector"
 import { useSearchParams, useRouter } from 'next/navigation'
-import { mergeAudioSegments, createAudioPlaylist, formatFileSize, formatTime } from "@/lib/audio-utils"
+import { mergeAudioSegments, createAudioPlaylist, formatFileSize, formatTime as formatTimeUtil } from "@/lib/audio-utils"
 
 interface ProcessingData {
   fileName: string
@@ -398,6 +398,77 @@ function ResultContent() {
         
         if (storedResult && storedId === resultId) {
           const parsedData = JSON.parse(storedResult)
+          
+          // 🔍 调试：详细记录接收到的数据结构
+          console.log('🔍 DEBUG: Parsed result data structure:')
+          console.log('  - sourceLanguage:', parsedData.sourceLanguage)
+          console.log('  - targetLanguage:', parsedData.targetLanguage)
+          console.log('  - originalTranscription segments count:', parsedData.originalTranscription?.segments?.length || 0)
+          console.log('  - translatedSegments count:', parsedData.translatedSegments?.length || 0)
+          
+          if (parsedData.originalTranscription?.segments) {
+            console.log('🔍 DEBUG: Original transcription segments:')
+            if (Array.isArray(parsedData.originalTranscription.segments)) {
+              parsedData.originalTranscription.segments.forEach((segment: any, index: number) => {
+                console.log(`  Original segment ${index + 1}:`)
+                console.log(`    id: ${segment.id}`)
+                console.log(`    start: ${segment.start}`)
+                console.log(`    end: ${segment.end}`)
+                console.log(`    text: "${segment.text}"`)
+              })
+            }
+          }
+          
+          if (parsedData.translatedSegments) {
+            console.log('🔍 DEBUG: Translated segments:')
+            if (Array.isArray(parsedData.translatedSegments)) {
+              parsedData.translatedSegments.forEach((segment: any, index: number) => {
+                console.log(`  Translated segment ${index + 1}:`)
+                console.log(`    id: ${segment.id}`)
+                console.log(`    start: ${segment.start}`)
+                console.log(`    end: ${segment.end}`)
+                console.log(`    originalText: "${segment.originalText}"`)
+                console.log(`    translatedText: "${segment.translatedText}"`)
+              })
+            }
+          }
+          
+          // 🔍 调试：验证数据一致性
+          if (parsedData.originalTranscription?.segments && parsedData.translatedSegments) {
+            console.log('🔍 DEBUG: Data consistency check:')
+            let allMatched = true
+            for (let i = 0; i < parsedData.translatedSegments.length; i++) {
+              const translatedSeg = parsedData.translatedSegments[i]
+              const originalSeg = parsedData.originalTranscription.segments.find((seg: any) => seg.id === translatedSeg.id)
+              
+              if (originalSeg) {
+                const textMatches = translatedSeg.originalText === originalSeg.text
+                const timingMatches = translatedSeg.start === originalSeg.start && translatedSeg.end === originalSeg.end
+                
+                console.log(`  Segment ${i + 1} (ID: ${translatedSeg.id}):`)
+                console.log(`    Text match: ${textMatches ? '✅' : '❌'}`)
+                console.log(`    Timing match: ${timingMatches ? '✅' : '❌'}`)
+                
+                if (!textMatches) {
+                  console.log(`    Expected originalText: "${originalSeg.text}"`)
+                  console.log(`    Actual originalText: "${translatedSeg.originalText}"`)
+                  allMatched = false
+                }
+                
+                if (!timingMatches) {
+                  console.log(`    Expected timing: ${originalSeg.start}s - ${originalSeg.end}s`)
+                  console.log(`    Actual timing: ${translatedSeg.start}s - ${translatedSeg.end}s`)
+                  allMatched = false
+                }
+              } else {
+                console.log(`  ❌ No matching original segment found for translated segment ${i + 1} (ID: ${translatedSeg.id})`)
+                allMatched = false
+              }
+            }
+            
+            console.log(`🔍 DEBUG: Overall data consistency: ${allMatched ? '✅ PASS' : '❌ FAIL'}`)
+          }
+          
           setResult(parsedData)
           console.log('✅ Result loaded from sessionStorage')
           return
@@ -568,8 +639,7 @@ function ResultContent() {
 
         console.log('🎵 Creating merged audio for download:', audioSegments);
         
-        // 动态导入音频合并函数
-        const { mergeAudioSegments } = await import('@/lib/audio-utils');
+        // 使用静态导入的音频合并函数
         const mergedUrl = await mergeAudioSegments(audioSegments);
         
         // 下载合并后的音频，在新标签页打开
@@ -824,16 +894,6 @@ function ResultContent() {
                           Translated
                         </Button>
                         <Button
-                          onClick={() => downloadDubbedAudio(result?.ttsAudios || [])}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-1"
-                          disabled={!result?.ttsAudios.some(audio => audio.status === 'succeeded' && audio.audioUrl)}
-                        >
-                          <Download className="h-4 w-4" />
-                          Audio
-                        </Button>
-                        <Button
                           variant="outline"
                           size="sm"
                           onClick={handleCopySubtitles}
@@ -851,10 +911,6 @@ function ResultContent() {
                               Copy All
                             </>
                           )}
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Share2 className="h-4 w-4 mr-1" />
-                          Share
                         </Button>
                       </div>
                     </div>
@@ -912,7 +968,7 @@ function ResultContent() {
                             <div className="flex justify-between items-center mb-2">
                               <span className="text-sm font-medium text-gray-700">Original ({result.sourceLanguage})</span>
                               <span className="text-xs text-gray-500">
-                                {formatTime(segment.start)} - {formatTime(segment.end)}
+                                {formatTimeUtil(segment.start)} - {formatTimeUtil(segment.end)}
                               </span>
                             </div>
                             <p className="text-gray-900 bg-gray-50 p-3 rounded">{segment.originalText}</p>
@@ -932,7 +988,7 @@ function ResultContent() {
                             <div className="flex items-center gap-3 mb-2">
                               <span className="text-xs text-gray-500 font-mono">Audio #{correspondingAudio.segmentId}</span>
                               <span className="text-xs text-gray-500">
-                                Duration: {formatTime(correspondingAudio.originalDuration)}
+                                Duration: {formatTimeUtil(correspondingAudio.originalDuration)}
                               </span>
                             </div>
                             

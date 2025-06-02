@@ -433,6 +433,13 @@ async function translateSegmentsWithProgress(
   console.log(`📝 Full translated text: "${fullTranslatedText}"`);
   console.log(`📋 Number of segments: ${segments.length}`);
   
+  // 🔍 调试：记录输入的segments数据
+  console.log('🔍 DEBUG: Input segments data:');
+  segments.forEach((segment, index) => {
+    console.log(`  Segment ${index}: id=${segment.id}, start=${segment.start}, end=${segment.end}`);
+    console.log(`    text: "${segment.text}"`);
+  });
+  
   // 如果只有一个分段，直接使用完整翻译
   if (segments.length === 1) {
     sendProgress(3, 65, 'Single segment detected, using full translation...');
@@ -442,13 +449,15 @@ async function translateSegmentsWithProgress(
       translatedText: fullTranslatedText.trim()
     };
     console.log(`✅ Single segment result:`, result);
+    console.log(`🔍 DEBUG: Single segment originalText set to: "${result.originalText}"`);
     translatedSegments.push(result);
     return translatedSegments;
   }
   
   // 尝试智能分割完整翻译文本
-  const sentences = splitIntoSentences(fullTranslatedText);
+  const sentences = splitIntoSentences(fullTranslatedText, segments.length);
   console.log(`📝 Split sentences:`, sentences);
+  console.log(`🔍 DEBUG: Sentence count: ${sentences.length}, Segment count: ${segments.length}`);
   
   // 如果翻译句子数量与分段数量匹配，直接映射
   if (sentences.length === segments.length) {
@@ -462,18 +471,33 @@ async function translateSegmentsWithProgress(
         originalText: segments[i].text,
         translatedText: sentences[i].trim()
       };
+      
+      // 🔍 调试：详细记录每个映射结果
+      console.log(`🔍 DEBUG: Direct mapping for segment ${i + 1}:`);
+      console.log(`  Input segment.text: "${segments[i].text}"`);
+      console.log(`  Set originalText: "${result.originalText}"`);
+      console.log(`  Set translatedText: "${result.translatedText}"`);
+      console.log(`  Timing: ${result.start}s - ${result.end}s`);
+      console.log(`  ID: ${result.id}`);
+      
       console.log(`✅ Mapped segment ${i + 1}:`, result);
       translatedSegments.push(result);
     }
   } else {
     // 如果句子数量不匹配，使用上下文感知的翻译
     console.log('📝 Sentence count mismatch, using context-aware translation...');
+    console.log(`🔍 DEBUG: Will use context-aware translation for ${segments.length} segments`);
     
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       const progressPercent = 55 + (i / totalSegments) * 15; // 55% to 70%
       
       sendProgress(3, progressPercent, `Translating segment ${i + 1} of ${totalSegments} with context...`);
+      
+      console.log(`🔍 DEBUG: Context-aware translation for segment ${i + 1}:`);
+      console.log(`  Input segment.text: "${segment.text}"`);
+      console.log(`  Segment timing: ${segment.start}s - ${segment.end}s`);
+      console.log(`  Segment ID: ${segment.id}`);
       
       // 构建上下文感知的翻译提示
       const contextPrompt = buildContextAwarePrompt(
@@ -497,6 +521,14 @@ async function translateSegmentsWithProgress(
           originalText: segment.text,
           translatedText: result.translatedText
         };
+        
+        // 🔍 调试：详细记录上下文翻译结果
+        console.log(`🔍 DEBUG: Context-aware translation result for segment ${i + 1}:`);
+        console.log(`  Set originalText: "${segmentResult.originalText}"`);
+        console.log(`  Set translatedText: "${segmentResult.translatedText}"`);
+        console.log(`  Timing: ${segmentResult.start}s - ${segmentResult.end}s`);
+        console.log(`  ID: ${segmentResult.id}`);
+        
         console.log(`✅ Context-aware translation for segment ${i + 1}:`, segmentResult);
         translatedSegments.push(segmentResult);
       } else {
@@ -507,6 +539,14 @@ async function translateSegmentsWithProgress(
           originalText: segment.text,
           translatedText: fallbackText
         };
+        
+        // 🔍 调试：详细记录后备翻译结果
+        console.log(`🔍 DEBUG: Fallback translation for segment ${i + 1}:`);
+        console.log(`  Set originalText: "${segmentResult.originalText}"`);
+        console.log(`  Set translatedText: "${segmentResult.translatedText}"`);
+        console.log(`  Timing: ${segmentResult.start}s - ${segmentResult.end}s`);
+        console.log(`  ID: ${segmentResult.id}`);
+        
         console.log(`⚠️ Fallback translation for segment ${i + 1}:`, segmentResult);
         translatedSegments.push(segmentResult);
       }
@@ -516,18 +556,178 @@ async function translateSegmentsWithProgress(
     }
   }
   
-  console.log(`🎯 Final translated segments:`, translatedSegments);
-  return translatedSegments;
+  // 🔍 调试：记录最终结果
+  console.log(`🔍 DEBUG: Final translated segments summary:`);
+  translatedSegments.forEach((segment, index) => {
+    console.log(`  Final segment ${index + 1}:`);
+    console.log(`    originalText: "${segment.originalText}"`);
+    console.log(`    translatedText: "${segment.translatedText}"`);
+    console.log(`    timing: ${segment.start}s - ${segment.end}s`);
+    console.log(`    id: ${segment.id}`);
+  });
+  
+  // 🔧 数据一致性验证和修复
+  console.log(`🔧 DEBUG: Performing data consistency validation and repair...`);
+  const repairedSegments = translatedSegments.map((translatedSeg, index) => {
+    // 找到对应的原始转录段落
+    const originalSeg = segments.find(seg => seg.id === translatedSeg.id);
+    
+    if (originalSeg) {
+      // 验证并修复 originalText
+      if (translatedSeg.originalText !== originalSeg.text) {
+        console.log(`🔧 DEBUG: Repairing originalText for segment ${index + 1}:`);
+        console.log(`  Before: "${translatedSeg.originalText}"`);
+        console.log(`  After:  "${originalSeg.text}"`);
+        
+        return {
+          ...translatedSeg,
+          originalText: originalSeg.text, // 强制使用原始转录文本
+          start: originalSeg.start,       // 确保时间戳一致
+          end: originalSeg.end,           // 确保时间戳一致
+          id: originalSeg.id              // 确保ID一致
+        };
+      } else {
+        console.log(`✅ DEBUG: Segment ${index + 1} originalText is correct`);
+        return translatedSeg;
+      }
+    } else {
+      console.log(`⚠️ DEBUG: No matching original segment found for translated segment ${index + 1} (ID: ${translatedSeg.id})`);
+      return translatedSeg;
+    }
+  });
+  
+  // 🔍 最终验证
+  console.log(`🔍 DEBUG: Final validation after repair:`);
+  let allValid = true;
+  repairedSegments.forEach((segment, index) => {
+    const originalSeg = segments.find(seg => seg.id === segment.id);
+    if (originalSeg) {
+      const textMatch = segment.originalText === originalSeg.text;
+      const timingMatch = segment.start === originalSeg.start && segment.end === originalSeg.end;
+      const idMatch = segment.id === originalSeg.id;
+      
+      console.log(`  Segment ${index + 1} validation:`);
+      console.log(`    Text match: ${textMatch ? '✅' : '❌'}`);
+      console.log(`    Timing match: ${timingMatch ? '✅' : '❌'}`);
+      console.log(`    ID match: ${idMatch ? '✅' : '❌'}`);
+      
+      if (!textMatch || !timingMatch || !idMatch) {
+        allValid = false;
+      }
+    }
+  });
+  
+  console.log(`🔍 DEBUG: Final validation result: ${allValid ? '✅ ALL VALID' : '❌ ISSUES REMAIN'}`);
+  
+  console.log(`🎯 Final translated segments:`, repairedSegments);
+  return repairedSegments;
 }
 
 // 将文本分割为句子
-function splitIntoSentences(text: string): string[] {
+function splitIntoSentences(text: string, totalSegments: number): string[] {
+  // 🔍 调试：记录输入文本
+  console.log(`🔍 DEBUG: splitIntoSentences input: "${text}"`);
+  console.log(`🔍 DEBUG: Target segments: ${totalSegments}`);
+  
   // 支持中文、英文等多种语言的句子分割
+  // 改进的正则表达式，更好地处理各种标点符号
   const sentences = text
-    .split(/[.!?。！？]+/)
+    .split(/[.!?。！？；;]+/)
     .map(s => s.trim())
     .filter(s => s.length > 0);
   
+  // 🔍 调试：记录分割结果
+  console.log(`🔍 DEBUG: splitIntoSentences output:`, sentences);
+  console.log(`🔍 DEBUG: Split count: ${sentences.length}`);
+  
+  // 如果分割结果与目标数量匹配，直接返回
+  if (sentences.length === totalSegments) {
+    console.log(`🔍 DEBUG: Perfect match! Using sentence split`);
+    return sentences;
+  }
+  
+  // 如果分割结果只有一个句子，或者分割数量不够，尝试其他分割方法
+  if (sentences.length < totalSegments && text.length > 20) {
+    console.log(`🔍 DEBUG: Insufficient splits (${sentences.length}), trying alternative splitting...`);
+    
+    // 尝试按逗号分割（适用于中文）
+    const commaSplit = text
+      .split(/[，,]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    
+    console.log(`🔍 DEBUG: Comma split result:`, commaSplit);
+    
+    // 如果逗号分割的结果更接近目标数量，使用逗号分割
+    const sentenceDiff = Math.abs(sentences.length - totalSegments);
+    const commaDiff = Math.abs(commaSplit.length - totalSegments);
+    
+    if (commaDiff < sentenceDiff && commaSplit.length > 1) {
+      console.log(`🔍 DEBUG: Using comma split (${commaSplit.length} parts, diff: ${commaDiff})`);
+      return commaSplit;
+    }
+    
+    // 如果逗号分割也不够，尝试混合分割（句号+逗号）
+    if (sentences.length === 2 && totalSegments >= 3) {
+      console.log(`🔍 DEBUG: Trying mixed splitting for 2 sentences...`);
+      
+      // 对每个句子再次尝试逗号分割
+      const mixedSplit = [];
+      for (const sentence of sentences) {
+        const subSplit = sentence
+          .split(/[，,]+/)
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+        
+        if (subSplit.length > 1) {
+          mixedSplit.push(...subSplit);
+        } else {
+          mixedSplit.push(sentence);
+        }
+      }
+      
+      console.log(`🔍 DEBUG: Mixed split result:`, mixedSplit);
+      const mixedDiff = Math.abs(mixedSplit.length - totalSegments);
+      
+      if (mixedDiff < sentenceDiff && mixedSplit.length > sentences.length) {
+        console.log(`🔍 DEBUG: Using mixed split (${mixedSplit.length} parts, diff: ${mixedDiff})`);
+        return mixedSplit;
+      }
+    }
+    
+    // 尝试按长度分割（最后的备选方案）
+    if (sentences.length === 1 && totalSegments === 2) {
+      console.log(`🔍 DEBUG: Single sentence, trying length-based splitting...`);
+      
+      const midPoint = Math.floor(text.length / 2);
+      const spaceIndex = text.indexOf(' ', midPoint);
+      const commaIndex = text.indexOf('，', midPoint);
+      
+      let splitIndex = -1;
+      if (spaceIndex !== -1 && commaIndex !== -1) {
+        splitIndex = Math.min(spaceIndex, commaIndex);
+      } else if (spaceIndex !== -1) {
+        splitIndex = spaceIndex;
+      } else if (commaIndex !== -1) {
+        splitIndex = commaIndex;
+      }
+      
+      if (splitIndex !== -1) {
+        const lengthSplit = [
+          text.substring(0, splitIndex).trim(),
+          text.substring(splitIndex + 1).trim()
+        ].filter(s => s.length > 0);
+        
+        console.log(`🔍 DEBUG: Length split result:`, lengthSplit);
+        if (lengthSplit.length === 2) {
+          console.log(`🔍 DEBUG: Using length split (${lengthSplit.length} parts)`);
+          return lengthSplit;
+        }
+      }
+    }
+  }
+  
+  console.log(`🔍 DEBUG: Using original sentence split (${sentences.length} parts)`);
   return sentences;
 }
 
@@ -671,7 +871,7 @@ async function translateWithContext(
 
 // 从完整翻译中提取相关部分作为后备方案
 function extractRelevantPortion(fullTranslation: string, segmentIndex: number, totalSegments: number): string {
-  const sentences = splitIntoSentences(fullTranslation);
+  const sentences = splitIntoSentences(fullTranslation, totalSegments);
   
   if (sentences.length === 0) {
     return fullTranslation;
