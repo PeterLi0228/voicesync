@@ -1,1 +1,8 @@
- 
+# Placeholder Audio File
+
+This is a placeholder for the original audio file. In a real implementation, this would be the actual uploaded audio file that users want to translate and dub.
+
+To use real audio files:
+1. Replace this file with actual MP3 audio content
+2. Update the src paths in the AudioPlayer components
+3. Implement proper file serving from your backend or CDN 

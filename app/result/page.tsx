@@ -451,48 +451,11 @@ function ResultContent() {
     }
   }, [searchParams])
 
-  // Mock data for the subtitles
-  const subtitles = [
-    {
-      id: 1,
-      start: "00:00:01,200",
-      end: "00:00:04,500",
-      original: "Welcome to our product demonstration.",
-      translated: "Bienvenido a nuestra demostración de producto.",
-    },
-    {
-      id: 2,
-      start: "00:00:05,000",
-      end: "00:00:09,800",
-      original: "Today, I'll show you how our new software can improve your workflow.",
-      translated: "Hoy, te mostraré cómo nuestro nuevo software puede mejorar tu flujo de trabajo.",
-    },
-    {
-      id: 3,
-      start: "00:00:10,200",
-      end: "00:00:15,500",
-      original: "Let's start by looking at the main dashboard.",
-      translated: "Comencemos por ver el panel de control principal.",
-    },
-    {
-      id: 4,
-      start: "00:00:16,000",
-      end: "00:00:20,500",
-      original: "As you can see, it provides a comprehensive overview of all your projects.",
-      translated: "Como puedes ver, proporciona una visión completa de todos tus proyectos.",
-    },
-    {
-      id: 5,
-      start: "00:00:21,000",
-      end: "00:00:26,800",
-      original: "The interface is designed to be intuitive and user-friendly.",
-      translated: "La interfaz está diseñada para ser intuitiva y fácil de usar.",
-    },
-  ]
-
   const handleCopySubtitles = () => {
-    const subtitleText = subtitles
-      .map((sub) => `${sub.id}\n${sub.start} --> ${sub.end}\n${sub.translated}\n\n`)
+    if (!result) return;
+    
+    const subtitleText = result.translatedSegments
+      .map((segment, index) => `${index + 1}\n${formatSRTTime(segment.start)} --> ${formatSRTTime(segment.end)}\n${segment.translatedText}\n\n`)
       .join("")
 
     navigator.clipboard.writeText(subtitleText)
@@ -521,6 +484,8 @@ function ResultContent() {
     const a = document.createElement('a')
     a.href = url
     a.download = filename
+    a.target = '_blank' // 在新标签页打开
+    a.rel = 'noopener noreferrer' // 安全性
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -839,10 +804,31 @@ function ResultContent() {
                       <h3 className="text-lg font-medium">Subtitles</h3>
                       <div className="flex gap-2">
                         <Button
+                          onClick={() => downloadSubtitles(result?.originalTranscription.segments || [], 'original_subtitles.srt')}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                          disabled={!result?.originalTranscription.segments}
+                        >
+                          <Download className="h-4 w-4" />
+                          Original
+                        </Button>
+                        <Button
+                          onClick={() => downloadSubtitles(result?.translatedSegments || [], 'translated_subtitles.srt')}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                          disabled={!result?.translatedSegments}
+                        >
+                          <Download className="h-4 w-4" />
+                          Translated
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={handleCopySubtitles}
                           className="flex items-center gap-1"
+                          disabled={!result?.translatedSegments}
                         >
                           {copied ? (
                             <>
@@ -864,27 +850,31 @@ function ResultContent() {
                     </div>
 
                     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                      {subtitles.map((subtitle) => (
-                        <div key={subtitle.id} className="border rounded-md p-3 hover:bg-muted/50 transition-colors">
+                      {result?.translatedSegments.map((segment, index) => (
+                        <div key={segment.id} className="border rounded-md p-3 hover:bg-muted/50 transition-colors">
                           <div className="text-xs text-muted-foreground mb-1">
-                            {subtitle.start} → {subtitle.end}
+                            {formatSRTTime(segment.start)} → {formatSRTTime(segment.end)}
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <div>
                               <div className="text-xs font-medium text-muted-foreground mb-1">
-                                {processingData ? getLanguageLabel(processingData.sourceLanguage) : 'English'}
+                                {processingData ? getLanguageLabel(processingData.sourceLanguage) : getLanguageLabel(result.sourceLanguage)}
                               </div>
-                              <p>{subtitle.original}</p>
+                              <p>{segment.originalText}</p>
                             </div>
                             <div>
                               <div className="text-xs font-medium text-muted-foreground mb-1">
-                                {processingData ? getLanguageLabel(processingData.targetLanguage) : 'Spanish'}
+                                {processingData ? getLanguageLabel(processingData.targetLanguage) : getLanguageLabel(result.targetLanguage)}
                               </div>
-                              <p>{subtitle.translated}</p>
+                              <p>{segment.translatedText}</p>
                             </div>
                           </div>
                         </div>
-                      ))}
+                      )) || (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No subtitles available
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -979,31 +969,13 @@ function ResultContent() {
               </CardContent>
             </Card>
 
-            {/* Download Options */}
+            {/* Download Dubbed Audio - Standalone */}
             <Card>
               <CardHeader>
-                <CardTitle>Download Options</CardTitle>
+                <CardTitle>Download Dubbed Audio</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button
-                    onClick={() => downloadSubtitles(result.originalTranscription.segments, 'original_subtitles.srt')}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Original Subtitles
-                  </Button>
-                  
-                  <Button
-                    onClick={() => downloadSubtitles(result.translatedSegments, 'translated_subtitles.srt')}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Translated Subtitles
-                  </Button>
-                  
+                <div className="flex justify-center">
                   <Button
                     onClick={() => downloadDubbedAudio(result.ttsAudios)}
                     variant="outline"
@@ -1011,16 +983,16 @@ function ResultContent() {
                     disabled={!result.ttsAudios.some(audio => audio.status === 'succeeded' && audio.audioUrl)}
                   >
                     <Download className="w-4 h-4" />
-                    Dubbed Audio
+                    Download Complete Dubbed Audio
                   </Button>
                 </div>
                 
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-800">
                     <strong>Download Information:</strong> 
-                    <br />• Subtitles are available in SRT format for video editing software
-                    <br />• Dubbed audio segments can be downloaded individually or as a playlist
-                    <br />• All downloads preserve timing information for proper synchronization
+                    <br />• Complete dubbed audio will be downloaded as a single merged file
+                    <br />• Audio preserves timing information for proper synchronization
+                    <br />• Download opens in a new tab for your convenience
                   </p>
                 </div>
               </CardContent>
