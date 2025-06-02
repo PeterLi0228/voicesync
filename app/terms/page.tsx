@@ -20,7 +20,6 @@ export default function TermsPage() {
             </Link>
           </Button>
           <h1 className="text-4xl font-bold mb-2">Terms of Service</h1>
-          <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
         </div>
 
         <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
@@ -164,7 +163,7 @@ export default function TermsPage() {
               If you have any questions about these Terms of Service, please contact us at:
             </p>
             <div className="mt-4 p-4 bg-muted rounded-lg">
-              <p className="font-medium">Email: VoiceSync@like228.com</p>
+              <p className="font-medium">Email: {process.env.NEXT_PUBLIC_CONTACT_EMAIL}</p>
               <p className="text-sm text-muted-foreground mt-1">
                 We will respond to your inquiry within 48 hours.
               </p>

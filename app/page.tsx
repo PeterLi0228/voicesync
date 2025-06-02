@@ -2,8 +2,10 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Link from "next/link"
-import { Upload, Languages, Wand2, Download, Clock, Zap, Globe, CheckCircle2, Sparkles } from "lucide-react"
+import { Upload, Languages, Wand2, Download, Clock, Zap, Globe, CheckCircle2, Sparkles, HelpCircle } from "lucide-react"
 
 export default function Home() {
   return (
@@ -178,21 +180,110 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="py-16 md:py-24">
+        {/* FAQ Section */}
+        <section className="py-16 md:py-24 bg-card/50">
           <div className="container">
-            <div className="bg-card border border-primary/20 rounded-2xl p-8 md:p-12">
-              <div className="max-w-3xl mx-auto text-center">
-                <h2 className="text-3xl md:text-4xl font-bold mb-4 text-primary">
-                  Ready to Transform Your Audio Content?
-                </h2>
-                <p className="text-lg text-muted-foreground mb-8">
-                  Start translating and dubbing your audio content in minutes. No registration required.
-                </p>
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground" asChild>
-                  <Link href="/upload">Get Started Now</Link>
-                </Button>
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <HelpCircle className="h-8 w-8 text-primary" />
+                <h2 className="text-3xl md:text-4xl font-bold text-primary">Frequently Asked Questions</h2>
               </div>
+              <p className="text-lg text-muted-foreground">
+                Find answers to common questions about VoiceSync
+              </p>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              <Accordion type="single" collapsible className="space-y-4">
+                <AccordionItem value="item-1" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    How long does audio processing take?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    Processing time varies depending on the length and complexity of your audio file. 
+                    Most files are processed within 2-5 minutes. Longer files may take up to 10-15 minutes. 
+                    You can monitor the progress in real-time during processing.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-2" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    What audio file formats are supported?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    We support most common audio formats including MP3, WAV, M4A, AAC, FLAC, and OGG. 
+                    The maximum file size is 50MB. For best results, we recommend using high-quality audio files 
+                    with clear speech and minimal background noise.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-3" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    How accurate are the translations?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    Our AI-powered translation system provides high accuracy for most content types. 
+                    The accuracy depends on factors like audio quality, speaking clarity, language pair, 
+                    and content complexity. We use advanced models including DeepSeek for translation 
+                    to ensure natural and contextually appropriate results.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-4" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    Is my data secure and private?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    Yes, we take data security seriously. All uploaded files are encrypted during transmission 
+                    and processing. Your audio files are automatically deleted from our servers within 24 hours 
+                    of upload. We do not store or share your content with third parties.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-5" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    Can I download the translated audio and subtitles?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    Absolutely! After processing is complete, you can download the dubbed audio file in MP3 format 
+                    and subtitle files in both SRT and VTT formats. The download links remain active for 24 hours 
+                    after processing completion.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-6" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    Do I need to create an account to use VoiceSync?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    No registration is required! VoiceSync is completely free to use without creating an account. 
+                    Simply upload your audio file, select your languages, and start the translation process. 
+                    This makes it quick and easy to get started immediately.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-7" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    What languages are supported for translation?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    We currently support translation between 10+ major languages including English, Spanish, 
+                    French, German, Italian, Portuguese, Chinese, Russian, Arabic, and Hindi. 
+                    We're continuously working to add support for more languages based on user demand.
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="item-8" className="bg-card border border-border rounded-lg px-6">
+                  <AccordionTrigger className="text-left">
+                    Can I use VoiceSync for commercial purposes?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    Yes, you can use VoiceSync for both personal and commercial projects. However, please ensure 
+                    that you have the necessary rights to the original audio content you're translating. 
+                    You're responsible for complying with copyright and intellectual property laws.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           </div>
         </section>

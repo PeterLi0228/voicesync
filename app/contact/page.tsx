@@ -106,7 +106,7 @@ export default function ContactPage() {
                   For all inquiries, technical support, and general questions:
                 </p>
                 <div className="p-3 bg-muted rounded-lg">
-                  <p className="font-medium">VoiceSync@like228.com</p>
+                  <p className="font-medium">{process.env.NEXT_PUBLIC_CONTACT_EMAIL}</p>
                 </div>
               </CardContent>
             </Card>
@@ -153,34 +153,6 @@ export default function ContactPage() {
                   <li>• Worldwide accessibility</li>
                   <li>• Multi-timezone support</li>
                 </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Frequently Asked Questions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-sm mb-1">How long does processing take?</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Processing time varies by audio length, typically 2-5 minutes for most files.
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm mb-1">What file formats are supported?</h4>
-                    <p className="text-xs text-muted-foreground">
-                      We support MP3, WAV, M4A, and most common audio formats.
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm mb-1">Is my data secure?</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Yes, all files are encrypted and automatically deleted after processing.
-                    </p>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>

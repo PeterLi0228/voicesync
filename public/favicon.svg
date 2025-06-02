@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <!-- Background gradient circle -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F59E0B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D97706;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="waveGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0.7" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main background circle -->
+  <circle cx="16" cy="16" r="14" fill="url(#bgGradient)" stroke="#92400E" stroke-width="1"/>
+  
+  <!-- Audio waveform visualization -->
+  <rect x="7" y="19" width="1.5" height="6" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="9.5" y="16" width="1.5" height="10" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="12" y="12" width="1.5" height="14" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="14.5" y="9" width="1.5" height="18" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="17" y="11" width="1.5" height="15" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="19.5" y="14" width="1.5" height="12" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="22" y="17" width="1.5" height="8" rx="0.75" fill="url(#waveGradient)"/>
+  <rect x="24.5" y="20" width="1.5" height="4" rx="0.75" fill="url(#waveGradient)"/>
+  
+  <!-- Sync symbol - stylized "S" curve -->
+  <path d="M6 8 C8 6, 10 6, 12 8" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M20 24 C22 26, 24 26, 26 24" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Small accent dots -->
+  <circle cx="5" cy="9" r="1" fill="white" opacity="0.8"/>
+  <circle cx="27" cy="23" r="1" fill="white" opacity="0.8"/>
+</svg> 

@@ -20,6 +20,30 @@ export const metadata: Metadata = {
     telephone: false,
   },
   metadataBase: new URL('https://voicesync.app'),
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32' },
+    ],
+    apple: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    other: [
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '192x192',
+        url: '/icon-192.png',
+      },
+      {
+        rel: 'icon',
+        type: 'image/png', 
+        sizes: '512x512',
+        url: '/icon-512.png',
+      },
+    ],
+  },
   openGraph: {
     title: "VoiceSync - Audio Translation & Dubbing Platform",
     description: "Transform your audio content for global audiences with AI-powered translation and dubbing.",
@@ -66,6 +90,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#D97706" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="VoiceSync" />
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider 
           attribute="class" 
