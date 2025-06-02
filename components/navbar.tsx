@@ -40,13 +40,13 @@ export function Navbar() {
             Upload
           </Link>
           <Link
-            href="#features"
+            href="/#features"
             className="text-sm font-medium text-foreground/60 transition-colors hover:text-primary"
           >
             Features
           </Link>
           <Link
-            href="#how-it-works"
+            href="/#how-it-works"
             className="text-sm font-medium text-foreground/60 transition-colors hover:text-primary"
           >
             How It Works
