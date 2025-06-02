@@ -11,29 +11,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 语言代码映射 - 根据API错误信息，只支持这些语言代码：
-    // "en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "hu", "ko", "hi"
+    // 语言代码映射 - 根据XTTS-v2 API文档支持的语言：
+    // English: en, French: fr, German: de, Spanish: es, Italian: it, Portuguese: pt
+    // Czech: cs, Polish: pl, Russian: ru, Dutch: nl, Turkish: tr, Arabic: ar
+    // Mandarin Chinese: zh-cn (mapped to zh), Hindi: hi
     const languageMap: { [key: string]: string } = {
-      'en': 'en',
-      'zh': 'zh',        // 修正：使用 'zh' 而不是 'zh-cn'
-      'zh-cn': 'zh',     // 中文简体映射到 zh
-      'zh-tw': 'zh',     // 中文繁体也映射到 zh
-      'es': 'es',
-      'fr': 'fr',
-      'de': 'de',
-      'it': 'it',
-      'pt': 'pt',
-      'pl': 'pl',        // 波兰语
-      'tr': 'tr',        // 土耳其语
-      'ru': 'ru',
-      'nl': 'nl',        // 荷兰语
-      'cs': 'cs',        // 捷克语
-      'ar': 'ar',
-      'hu': 'hu',        // 匈牙利语
-      'ko': 'ko',
-      'hi': 'hi',
-      // 日语不在支持列表中，映射到英语
-      'ja': 'en'         // 日语映射到英语作为fallback
+      'en': 'en',        // English
+      'zh': 'zh',        // Chinese (Mandarin)
+      'zh-cn': 'zh',     // Chinese Simplified
+      'zh-tw': 'zh',     // Chinese Traditional (fallback to Mandarin)
+      'es': 'es',        // Spanish
+      'fr': 'fr',        // French
+      'de': 'de',        // German
+      'it': 'it',        // Italian
+      'pt': 'pt',        // Portuguese
+      'pl': 'pl',        // Polish
+      'tr': 'tr',        // Turkish
+      'ru': 'ru',        // Russian
+      'nl': 'nl',        // Dutch
+      'cs': 'cs',        // Czech
+      'ar': 'ar',        // Arabic
+      'hi': 'hi',        // Hindi
+      // Unsupported languages fallback to English
+      'ja': 'en',        // Japanese -> English (not supported by TTS)
+      'ko': 'en'         // Korean -> English (not supported by TTS)
     };
 
     const ttsLanguage = languageMap[language] || 'en';

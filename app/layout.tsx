@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "VoiceSync - Audio Translation & Dubbing Platform",
-  description: "Transform your audio content for global audiences with AI-powered translation and dubbing. Support for 12+ languages with professional quality results.",
+  description: "Transform your audio content for global audiences with AI-powered translation and dubbing. Support for 10+ languages with professional quality results.",
   keywords: ["audio translation", "dubbing", "voice sync", "AI translation", "multilingual", "audio localization"],
   authors: [{ name: "VoiceSync Team" }],
   creator: "VoiceSync",

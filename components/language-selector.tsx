@@ -11,8 +11,6 @@ export const languages = [
   { value: "it", label: "Italian", flag: "🇮🇹" },
   { value: "pt", label: "Portuguese", flag: "🇵🇹" },
   { value: "zh", label: "Chinese", flag: "🇨🇳" },
-  { value: "ja", label: "Japanese", flag: "🇯🇵" },
-  { value: "ko", label: "Korean", flag: "🇰🇷" },
   { value: "ru", label: "Russian", flag: "🇷🇺" },
   { value: "ar", label: "Arabic", flag: "🇸🇦" },
   { value: "hi", label: "Hindi", flag: "🇮🇳" },
